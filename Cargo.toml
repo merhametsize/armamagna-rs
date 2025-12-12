@@ -1,0 +1,42 @@
+[package]
+name = "armamagna"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+unicode-normalization = "0.1.20"
+tempfile = "3.23"
+crossbeam-channel = "0.5"
+rayon = "1.11"
+num_cpus = "1.17"
+clap = {version = "4.5", features = ["derive"]}
+ahash = "0.8"
+fxhash = "0.2"
+
+# DEBUG BUILD  (cargo build / cargo run)
+[profile.dev]
+opt-level = 0
+debug = true
+overflow-checks = true
+lto = "off"
+panic = "unwind"
+incremental = true
+codegen-units = 16
+strip = false
+
+# RELEASE BUILD (cargo build --release)
+[profile.release]
+opt-level = 3
+debug = false
+overflow-checks = false
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+incremental = false
+strip = "symbols"
+
+# BENCH BUILD
+[profile.bench]
+inherits = "release"
+debug = true
+lto = "thin"
