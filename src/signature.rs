@@ -4,7 +4,7 @@ use std::hash::{BuildHasherDefault, Hash, Hasher};
 const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
 const FNV_PRIME: u64 = 0x100000001b3;
 
-/// Custom FNV Hasher that implements the FNV-1a bulk-mix logic
+/// Custom FNV Hasher that implements the FNV-1a bulk-mix logic. Provides a HUUUUUGE speedup.
 pub struct FnvHasher {
     hash: u64,
 }
@@ -126,6 +126,7 @@ impl Signature {
         s
     }
 }
+
 impl Hash for Signature {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let data = self.table.as_ptr();
