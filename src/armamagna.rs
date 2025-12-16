@@ -21,6 +21,8 @@ pub struct ArmaMagna {
     output_file_name: String,
     min_cardinality: u64,
     max_cardinality: u64,
+    min_wordlength: u64,
+    max_wordlength: u64,
 
     // Processed variables
     dictionary: Dictionarium, // Shared but read-only for threads (will be Arc-wrapped when needed)
@@ -41,8 +43,10 @@ impl ArmaMagna {
             included_text: String::new(),
             dictionary_name: String::new(),
             output_file_name: String::new(),
-            min_cardinality: 1,
-            max_cardinality: 1,
+            min_cardinality: 0,
+            max_cardinality: 0,
+            min_wordlength: 0,
+            max_wordlength: 0,
 
             dictionary: Dictionarium::new(),
             target_signature: Signature::new_empty(),
@@ -64,11 +68,13 @@ impl ArmaMagna {
         included: &str,
         mincard: u64,
         maxcard: u64,
+        minwlen: u64,
+        maxwlen: u64,
         num_threads: u64,
     ) -> Result<(), String> {
         self.set_target_text(text)?;
         self.set_included_text(included)?;
-        self.set_restrictions(mincard, maxcard)?;
+        self.set_restrictions(mincard, maxcard, minwlen, maxwlen)?;
         self.set_dictionary_name(dictionary);
         self.set_threads_number(num_threads);
         self.output_file_name = output_file_name.to_string();
@@ -128,14 +134,17 @@ impl ArmaMagna {
     }
 
     /// Sets the cardinality restrictions (number of words in the anagrams).
-    pub fn set_restrictions(&mut self, mincard: u64, maxcard: u64) -> Result<(), String> {
+    pub fn set_restrictions(
+        &mut self,
+        mincard: u64,
+        maxcard: u64,
+        minwlen: u64,
+        maxwlen: u64,
+    ) -> Result<(), String> {
         // Arguments validity checking
-        if mincard <= 0 || maxcard <= 0 {
-            return Err("Cardinalities must be positive".to_string());
-        }
-        if mincard > maxcard {
+        if mincard > maxcard || minwlen > maxwlen {
             return Err(
-                "Maximum cardinality must be greater or equal than minimum cardinality".to_string(),
+                "Maximum cardinality/word length must be greater or equal than minimum cardinality/word length".to_string(),
             );
         }
         if mincard <= self.included_words_number {
@@ -151,6 +160,8 @@ impl ArmaMagna {
 
         self.min_cardinality = mincard;
         self.max_cardinality = maxcard;
+        self.min_wordlength = minwlen;
+        self.max_wordlength = maxwlen;
 
         // Computes the actual cardinalities
         self.actual_min_cardinality = mincard - self.included_words_number;
@@ -181,20 +192,22 @@ impl ArmaMagna {
         );
 
         // Computes the power set from the word lengths that are available in the dictionary after filtering
-        let available_lengths = self.dictionary.get_available_lengths();
+        let available_lengths = self
+            .dictionary
+            .get_available_lengths(self.min_wordlength as usize, self.max_wordlength as usize);
 
-        let ps = RepeatedCombinationsWithSum::new(
+        let rcs = RepeatedCombinationsWithSum::new(
             self.actual_target_signature.get_char_number(),
             self.actual_min_cardinality as usize,
             self.actual_max_cardinality as usize,
             available_lengths,
         );
-        let powersets_number = ps.get_sets_number();
+        let combinations_number = rcs.get_sets_number();
 
         // Reserve two threads: main + IO
         let workers_number = (self.num_threads - 2).max(1);
-        println!("[*] Starting {} threads", workers_number);
-        println!("[*] Covering {} powersets\n", powersets_number);
+        println!("[*] Starting {} search threads", workers_number);
+        println!("[*] Covering {} length combinations\n", combinations_number);
 
         // Prepare the Arcs to share with workers
         let dict_arc = Arc::new(std::mem::take(&mut self.dictionary)); //Moved
@@ -218,8 +231,8 @@ impl ArmaMagna {
 
         // Scope the work so we block until all tasks are done.
         pool.scope(|s| {
-            for i in 0..powersets_number {
-                let set = ps.get_set(i).clone();
+            for i in 0..combinations_number {
+                let set = rcs.get_set(i).clone();
 
                 // Clone arcs & sender for move into task
                 let dict = Arc::clone(&dict_arc);
@@ -289,7 +302,7 @@ impl ArmaMagna {
 
             // Update console every 1 second
             let now = Instant::now();
-            if now.duration_since(last_display_time) >= Duration::from_millis(500) {
+            if now.duration_since(last_display_time) >= Duration::from_millis(1000) {
                 print!("\r[{}] {}{}", anagram_count, anagram, " ".repeat(30));
                 std::io::stdout().flush()?;
                 writer.flush()?; //Flush periodically on file
@@ -321,6 +334,10 @@ impl ArmaMagna {
         println!(
             "{:<40}({},{})",
             "[*] Cardinality:", self.min_cardinality, self.max_cardinality
+        );
+        println!(
+            "{:<40}({},{})",
+            "[*] Word lengths:", self.min_wordlength, self.max_wordlength
         );
         println!("{:<40}{}", "[*] Estimated concurrency:", num_cpus::get());
         println!("{:<40}{}", "[*] Threads to launch:", self.num_threads);

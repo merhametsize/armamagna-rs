@@ -1,52 +1,6 @@
 use std::fmt;
 use std::hash::{BuildHasherDefault, Hash, Hasher};
 
-const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
-const FNV_PRIME: u64 = 0x100000001b3;
-
-/// Custom FNV Hasher that implements the FNV-1a bulk-mix logic. Provides a HUUUUUGE speedup.
-pub struct FnvHasher {
-    hash: u64,
-}
-
-impl Default for FnvHasher {
-    fn default() -> Self {
-        FnvHasher {
-            hash: FNV_OFFSET_BASIS,
-        }
-    }
-}
-
-impl Hasher for FnvHasher {
-    fn finish(&self) -> u64 {
-        self.hash
-    }
-
-    /// Replicates the C++ FNV logic: h = (h ^ v) * FNV_PRIME;
-    #[inline(always)]
-    fn write_u64(&mut self, i: u64) {
-        // Use wrapping_mul for the same behavior as C++ arithmetic overflow
-        self.hash = (self.hash ^ i).wrapping_mul(FNV_PRIME);
-    }
-
-    // We only need to implement the methods called by Signature::hash.
-    #[inline(always)]
-    fn write_u16(&mut self, i: u16) {
-        self.write_u64(i as u64);
-    }
-
-    // Since Signature::hash only calls write_u64/write_u16, the generic write() is not strictly needed,
-    // but the FNV implementation for bytes is also simple:
-    fn write(&mut self, bytes: &[u8]) {
-        for byte in bytes {
-            self.hash = (self.hash ^ (*byte as u64)).wrapping_mul(FNV_PRIME);
-        }
-    }
-}
-
-// Type alias for the BuildHasher needed by the HashMap
-pub type FnvBuildHasher = BuildHasherDefault<FnvHasher>;
-
 /// Represents the character signature of a word (a-z only, normalized).
 /// Implemented as an array mapping letter index to letter count.
 #[repr(C)]
@@ -148,6 +102,52 @@ impl fmt::Display for Signature {
         write!(f, "{}", self.to_string())
     }
 }
+
+const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+const FNV_PRIME: u64 = 0x100000001b3;
+
+/// Custom FNV Hasher that implements the FNV-1a bulk-mix logic. Provides a HUUUUUGE speedup.
+pub struct FnvHasher {
+    hash: u64,
+}
+
+impl Default for FnvHasher {
+    fn default() -> Self {
+        FnvHasher {
+            hash: FNV_OFFSET_BASIS,
+        }
+    }
+}
+
+impl Hasher for FnvHasher {
+    fn finish(&self) -> u64 {
+        self.hash
+    }
+
+    /// Replicates the C++ FNV logic: h = (h ^ v) * FNV_PRIME;
+    #[inline(always)]
+    fn write_u64(&mut self, i: u64) {
+        // Use wrapping_mul for the same behavior as C++ arithmetic overflow
+        self.hash = (self.hash ^ i).wrapping_mul(FNV_PRIME);
+    }
+
+    // We only need to implement the methods called by Signature::hash.
+    #[inline(always)]
+    fn write_u16(&mut self, i: u16) {
+        self.write_u64(i as u64);
+    }
+
+    // Since Signature::hash only calls write_u64/write_u16, the generic write() is not strictly needed,
+    // but the FNV implementation for bytes is also simple:
+    fn write(&mut self, bytes: &[u8]) {
+        for byte in bytes {
+            self.hash = (self.hash ^ (*byte as u64)).wrapping_mul(FNV_PRIME);
+        }
+    }
+}
+
+// Type alias for the BuildHasher needed by the HashMap
+pub type FnvBuildHasher = BuildHasherDefault<FnvHasher>;
 
 #[cfg(test)]
 mod tests {

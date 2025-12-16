@@ -14,7 +14,7 @@ use clap::Parser;
 #[derive(clap::Parser, Debug)]
 #[command(author = "Gabriele Cassetta, @merhametsize", version, about = "ArmaMagna", long_about = None)]
 #[command(
-    after_help = "Example:\n  armamagna \"bazzecole andanti\" -d it.txt --mincard 1 --maxcard 3"
+    after_help = "Example:\n  ./armamagna \"bazzecole andanti\" -d ../../data/it.txt --mincard 1 --maxcard 3"
 )]
 struct Args {
     /// Text to anagram
@@ -29,12 +29,20 @@ struct Args {
     included_text: String,
 
     /// Minimum cardinality (number of words in the anagram)
-    #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..), default_value="1")]
     mincard: u64,
 
     /// Maximum cardinality (number of words in the anagram)
-    #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..), default_value="3")]
     maxcard: u64,
+
+    /// Minimum word length
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..), default_value="1")]
+    minwlen: u64,
+
+    /// Maximum word length
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..), default_value="30")]
+    maxwlen: u64,
 
     /// Output file
     #[arg(short = 'o', long = "out", default_value = "anagrams.txt")]
@@ -58,6 +66,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         &args.included_text,
         args.mincard,
         args.maxcard,
+        args.minwlen,
+        args.maxwlen,
         args.num_threads as u64,
     )?;
 

@@ -123,11 +123,12 @@ impl Dictionarium {
     }
 
     /// Returns the dictionary sections that still contain words after filtering.
-    pub fn get_available_lengths(&self) -> Vec<usize> {
+    pub fn get_available_lengths(&self, minwlen: usize, maxwlen: usize) -> Vec<usize> {
         self.sections
             .iter()
             .enumerate()
             .filter_map(|(i, s)| if !s.is_empty() { Some(i) } else { None })
+            .filter(|&i| i >= minwlen && i <= maxwlen)
             .collect()
     }
 }
@@ -174,7 +175,7 @@ mod tests {
         assert!(dict.get_reduced_words_number() > 0);
 
         // Check that all words in sections are subset of the source
-        for len in dict.get_available_lengths() {
+        for len in dict.get_available_lengths(1, 30) {
             for (_sig, words) in dict.get_section(len) {
                 for word in words {
                     let normalized_word = normalize_string(word);
@@ -198,7 +199,7 @@ mod tests {
         dict.read_word_list(tmp_file.path().to_str().unwrap(), source_text)
             .unwrap();
 
-        let lengths = dict.get_available_lengths();
+        let lengths = dict.get_available_lengths(1, 30);
         assert!(lengths.contains(&5)); // "gabri"
         assert!(lengths.contains(&8)); // "gabriele"
 
