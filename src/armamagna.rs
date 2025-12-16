@@ -1,6 +1,7 @@
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -33,6 +34,8 @@ pub struct ArmaMagna {
     actual_min_cardinality: u64,
     actual_max_cardinality: u64,
     num_threads: u64,
+
+    explored_sets: Arc<AtomicU64>, //⚛️Progress index, keeps track of how many search threads finished
 }
 
 impl ArmaMagna {
@@ -56,6 +59,8 @@ impl ArmaMagna {
             actual_min_cardinality: 0,
             actual_max_cardinality: 0,
             num_threads: num_cpus::get() as u64,
+
+            explored_sets: Arc::new(AtomicU64::new(0)), //⚛️
         }
     }
 
@@ -225,7 +230,9 @@ impl ArmaMagna {
 
         // Spawn the IO thread which consumes from the receiver and writes to the output file
         let of = self.output_file_name.clone();
-        let io_handle = thread::spawn(move || Self::io_loop(receiver, of));
+        let progress_clone = self.explored_sets.clone();
+        let io_handle =
+            thread::spawn(move || Self::io_loop(receiver, of, progress_clone, combinations_number));
 
         let timer_start = Instant::now();
 
@@ -239,11 +246,13 @@ impl ArmaMagna {
                 let actual_sig = Arc::clone(&actual_target_signature_arc);
                 let included_txt = Arc::clone(&included_text_arc);
                 let task_sender = sender.clone();
+                let explored_sets_clone = self.explored_sets.clone();
 
                 s.spawn(move |_| {
                     let mut search_thread =
                         search::SearchThread::new(dict, actual_sig, included_txt, set, task_sender);
                     search_thread.run();
+                    explored_sets_clone.fetch_add(1, Ordering::Relaxed);
                 });
             }
             // When the scope ends, all spawned tasks are guaranteed to have completed,
@@ -282,6 +291,8 @@ impl ArmaMagna {
     fn io_loop(
         receiver: Receiver<String>,
         output_file_name: String,
+        explored_sets: Arc<AtomicU64>,
+        sets_number: usize,
     ) -> Result<u64, std::io::Error> {
         let mut last_display_time = Instant::now();
 
@@ -303,7 +314,14 @@ impl ArmaMagna {
             // Update console every 1 second
             let now = Instant::now();
             if now.duration_since(last_display_time) >= Duration::from_millis(1000) {
-                print!("\r[{}] {}{}", anagram_count, anagram, " ".repeat(30));
+                print!(
+                    "\r[{}/{} sets] {}: {}{}",
+                    explored_sets.load(Ordering::Relaxed),
+                    sets_number,
+                    anagram_count,
+                    anagram,
+                    " ".repeat(30)
+                );
                 std::io::stdout().flush()?;
                 writer.flush()?; //Flush periodically on file
                 last_display_time = now;
