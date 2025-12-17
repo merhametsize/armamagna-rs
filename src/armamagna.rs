@@ -363,7 +363,7 @@ impl ArmaMagna {
 
         println!(
             "{:<40}{}",
-            "[*] Source text signature:",
+            "[*] Target signature:",
             self.target_signature.to_string()
         );
         println!(
@@ -381,12 +381,12 @@ impl ArmaMagna {
         );
         println!(
             "{:<40}{}",
-            "[*] Target signature:",
+            "[*] Actual target signature:",
             self.actual_target_signature.to_string()
         );
         println!(
             "{:<40}({},{})",
-            "[*] Effective cardinality:", self.actual_min_cardinality, self.actual_max_cardinality
+            "[*] Actual cardinality:", self.actual_min_cardinality, self.actual_max_cardinality
         );
         println!();
     }
