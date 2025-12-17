@@ -43,7 +43,7 @@ The Rust port uses the exact architecture of the C++ version, while leveraging R
 3.  **Build (Debug Mode):**
     This preset enables overflow checks and debug symbols.
     ```bash
-    cargo build --debug
+    cargo build
     ```
     *The executable is located at `./target/debug/armamagna`.*
 
